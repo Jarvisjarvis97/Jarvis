@@ -1,2 +1,3 @@
 test.sh
 deploy_orchestrator.sh
+deploy_agents.sh
