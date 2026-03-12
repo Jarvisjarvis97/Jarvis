@@ -4,67 +4,42 @@ set -euo pipefail
 ROOT="/opt/jarvis"
 LOG="$ROOT/logs/deploy_orchestrator.log"
 COMPOSE_DIR="$ROOT/compose"
+BASE="$COMPOSE_DIR/docker-compose.yml"
 OVR="$COMPOSE_DIR/docker-compose.override.yml"
 
 mkdir -p "$ROOT/logs" "$COMPOSE_DIR"
 
 echo "$(date -u +'%FT%TZ') [orchestrator] begin" >> "$LOG"
 
-docker compose -f "$COMPOSE_DIR/docker-compose.yml" ps >> "$LOG" 2>&1 || true
-
 cat >"$OVR" <<'YAML'
 version: "3.8"
 services:
-
-orchestrator (placeholder; will be enabled next round)
-
 orchestrator:
-
 image: alpine:3.19
-
-command: ["sh","-c","sleep infinity"]
-
+command: ["sh","-c","echo 'orchestrator up' && while :; do sleep 60; done"]
 restart: unless-stopped
-
 environment:
 
 - REDIS_URL=redis://redis:6379
-
 - PG_HOST=postgres
-
-- PG_USER=${PG_USER}
-
-- PG_PASSWORD=${PG_PASS}
-
-- PG_DATABASE=${PG_DB}
-
+- PGUSER=${PG_USER}
+- PGPASSWORD=${PG_PASS}
+- PGDATABASE=${PG_DB}
+- QDRANT_URL=http://qdrant:6333
 depends_on:
-
 - redis
-
 - postgres
-
 - qdrant
-
+healthcheck:
+test: ["CMD-SHELL","echo ok"]
+interval: 30s
+timeout: 3s
+retries: 3
+start_period: 10s
 YAML
 
-docker compose -f "$COMPOSE_DIR/docker-compose.yml" -f "$OVR" config >/dev/null
+docker compose -f "$BASE" -f "$OVR" config >/dev/null
+docker compose -f "$BASE" -f "$OVR" up -d orchestrator >> "$LOG" 2>&1
+docker compose -f "$BASE" -f "$OVR" ps orchestrator >> "$LOG" 2>&1 || true
 
-echo "$(date -u +'%FT%TZ') [orchestrator] OK (override ready, no new services started)" >> "$LOG"
-
-tasks/deploy_agents.sh
-#!/usr/bin/env bash
-set -euo pipefail
-
-ROOT="/opt/jarvis"
-LOG="$ROOT/logs/deploy_agents.log"
-COMPOSE_DIR="$ROOT/compose"
-OVR="$COMPOSE_DIR/docker-compose.override.yml"
-
-mkdir -p "$ROOT/logs" "$COMPOSE_DIR"
-
-echo "$(date -u +'%FT%TZ') [agents] begin" >> "$LOG"
-
-docker compose -f "$COMPOSE_DIR/docker-compose.yml" -f "$OVR" config >/dev/null
-
-echo "$(date -u +'%FT%TZ') [agents] OK (validated, no new services started)" >> "$LOG"
+echo "$(date -u +'%FT%TZ') [orchestrator] OK (service up)" >> "$LOG"
